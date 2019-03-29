@@ -67,7 +67,12 @@ class PhaseRetrievalThreaded(threading.Thread):
         self.params : dict
             Parameters to pass to HanserPSF, size and zsize will be automatically
             updated from data.shape
-        self.pr_state :
+        self.pr_state : PrState
+            PrState object provided by the tkinter mainloop thread.
+            Tracks current state of the phase retrieval algorithm
+        self.phase_retrieval_results : PhaseRetrievalResult
+            PhaseRetrievalResult object provided by the tkinter mainloop thread.
+            Tracks current results of the phase retrieval algorithm
         self.max_iters : int
             The maximum number of iterations to run, default is 200
         self.pupil_tol : float
@@ -304,7 +309,7 @@ class PhaseRetrievalResult(object):
         return fig, axs
 
     def plot_convergence_gui(self, figure_dpi, max_iterations):
-        """Diagnostic plots of the convergence criteria"""
+        """Diagnostic plots of mse_diff and pupil_diff"""
         with np.errstate(invalid="ignore"):
             fig, ax = plt.subplots(1, 1, figsize=(12, 3), sharex=True, dpi=figure_dpi)
             x_values = range(2, len(self.mse_diff) + 1)
