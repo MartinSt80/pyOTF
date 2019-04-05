@@ -32,9 +32,6 @@ from .zernike import *
 from skimage.restoration import unwrap_phase
 from matplotlib import pyplot as plt
 import threading
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 class PhaseRetrievalThreaded(threading.Thread):
@@ -62,32 +59,32 @@ class PhaseRetrievalThreaded(threading.Thread):
 
         Parameters
         ----------
-        self.psf_data : ndarray (3 dim)
+        self.psf_data: ndarray (3 dim)
             The experimentally measured PSF of a subdiffractive source
-        self.params : dict
+        self.params: dict
             Parameters to pass to HanserPSF, size and zsize will be automatically
             updated from data.shape
-        self.pr_state : PrState
-            PrState object provided by the tkinter mainloop thread.
-            Tracks current state of the phase retrieval algorithm
-        self.phase_retrieval_results : PhaseRetrievalResult
+        self.pr_state: PrState
+            PrState object provided by the tkinter mainloop thread. Tracks current state
+            of the phase retrieval algorithm.
+        self.phase_retrieval_results: PhaseRetrievalResult
             PhaseRetrievalResult object provided by the tkinter mainloop thread.
             Tracks current results of the phase retrieval algorithm
-        self.max_iters : int
+        self.max_iters: int
             The maximum number of iterations to run, default is 200
-        self.pupil_tol : float
+        self.pupil_tol: float
             the tolerance in percent change in change in pupil, default is 1e-8
-        self.mse_tol : float
+        self.mse_tol: float
             the tolerance in percent change for the mean squared error between
             data and simulated data, default is 1e-8
-        self.phase_only : bool
+        self.phase_only: bool
             True means only the phase of the back pupil is retrieved while the
             amplitude is not.
 
         Returns
         -------
-        PR_result : PhaseRetrievalResult
-            An object that contains the phase retrieval result
+        PR_result: PhaseRetrievalResult
+            An object that contains the phase retrieval result.
         """
 
         # make sure data is square
@@ -136,10 +133,12 @@ class PhaseRetrievalThreaded(threading.Thread):
             # check tolerances, how much has the pupil changed, how much has the mse changed
             # and what's the absolute mse
             if pupil_diff[i] < self.pupil_tol:
-                self.pr_state.current_state.set("Phase retrieval successful!\nMinimal pupil function difference reached")
+                self.pr_state.current_state.set("Phase retrieval successful!\n"
+                                                "Minimal pupil function difference reached")
                 break
             if mse_diff[i] < self.mse_tol or mse[i] < self.mse_tol:
-                self.pr_state.current_state.set("Phase retrieval successful!\nMinimal MSE difference reached")
+                self.pr_state.current_state.set("Phase retrieval successful!\n"
+                                                "Minimal MSE difference reached")
                 break
 
             # update old_mse
@@ -162,7 +161,8 @@ class PhaseRetrievalThreaded(threading.Thread):
             current_mask = fftshift(mask)
             current_phase = unwrap_phase(fftshift(np.angle(new_pupil))) * current_mask
             current_magnitude = fftshift(abs(new_pupil)) * current_mask
-            self.phase_retrieval_results.store_pr_result(current_magnitude, current_phase, mse, pupil_diff, mse_diff, model)
+            self.phase_retrieval_results.store_pr_result(current_magnitude, current_phase, mse,
+                                                         pupil_diff, mse_diff, model)
             if self.stop_pr.is_set():
                 self.pr_state.current_state.set("Phase Retrieval aborted.")
                 break
@@ -203,6 +203,8 @@ class PhaseRetrievalResult(object):
             number of iterations (m) performed
         model : HanserPSF object
             the model used to retrieve the pupil function
+        self.zd_results: ZernikeDecomposition
+            The results of the Zernike Decomposition
         """
         self.mag = None
         self.phase = None
@@ -210,7 +212,7 @@ class PhaseRetrievalResult(object):
         self.pupil_diff = None
         self.mse_diff = None
         self.model = None
-
+        self.zd_results = None
 
     # update internals
     def store_pr_result(self, mag, phase, mse, pupil_diff, mse_diff, model):
@@ -227,6 +229,7 @@ class PhaseRetrievalResult(object):
         # pull specific model parameters
         self.na, self.wl = model.na, model.wl
 
+    # reset internals
     def reset_pr_result(self):
         self.mag = None
         self.phase = None
@@ -234,7 +237,7 @@ class PhaseRetrievalResult(object):
         self.pupil_diff = None
         self.mse_diff = None
         self.model = None
-
+        self.zd_results = None
 
     def fit_to_zernikes(self, num_zerns):
         """Fits the data to a number of zernikes"""
@@ -246,7 +249,6 @@ class PhaseRetrievalResult(object):
         mag_coefs = _fit_to_zerns(self.mag, zerns, r)
         phase_coefs = _fit_to_zerns(self.phase, zerns, r)
         self.zd_result = ZernikeDecomposition(mag_coefs, phase_coefs, zerns)
-        return self.zd_result
 
     def generate_psf(self, sphase=slice(4, None, None), size=None, zsize=None,
                      zrange=None):
@@ -277,15 +279,38 @@ class PhaseRetrievalResult(object):
         # return data
         return psf
 
-    def plot(self, figure_dpi, axs=None):
+    def plot(self, axs=None):
         """Plot the retrieved results"""
         if axs is None:
-            fig, (ax_phase, ax_mag) = plt.subplots(1, 2, figsize=(12, 5), dpi=figure_dpi)
+            fig, (ax_phase, ax_mag) = plt.subplots(1, 2, figsize=(12, 5))
         else:
             (ax_phase, ax_mag) = axs
             fig = ax_phase.get_figure()
 
-        img_size = self.phase.shape[0]
+        phase_img = ax_phase.matshow(self.phase, cmap="seismic", vmin=-np.pi, vmax=np.pi)
+        plt.colorbar(phase_img, ax=ax_phase)
+        mag_img = ax_mag.matshow(self.mag, cmap="inferno")
+        plt.colorbar(mag_img, ax=ax_mag)
+        ax_phase.set_title("Pupil Phase")
+        ax_mag.set_title("Pupil Magnitude")
+        fig.tight_layout()
+        return fig, (ax_phase, ax_mag)
+
+    def plot_gui(self, figure_dpi=75):
+        """Plot the retrieved results
+            Arguments
+            ---------
+            figure_dpi: int
+                Desired resolution, depending on the screen resolution
+
+            Returns
+            ---------
+            fig: plt.Figure
+                The figure object showing the plotted phase and magnitude
+            (ax_phase, ax_mag): plt.Axes
+                The subplots which display the data
+        """
+        fig, (ax_phase, ax_mag) = plt.subplots(1, 2, figsize=(12, 5), dpi=figure_dpi)
         phase_img = ax_phase.matshow(self.phase, cmap="seismic", vmin=-np.pi, vmax=np.pi)
         plt.colorbar(phase_img, ax=ax_phase)
         mag_img = ax_mag.matshow(self.mag, cmap="inferno")
@@ -309,7 +334,21 @@ class PhaseRetrievalResult(object):
         return fig, axs
 
     def plot_convergence_gui(self, figure_dpi, max_iterations):
-        """Diagnostic plots of mse_diff and pupil_diff"""
+        """ Diagnostic plots of mse_diff and pupil_diff
+            Arguments
+            ---------
+            figure_dpi: int
+                Desired resolution, depending on the screen resolution
+            max_iterations: int
+                Maximum iterations set for the Phase Retrieval Algorithm
+
+            Returns
+            ---------
+            fig: plt.Figure
+                The figure object showing the plotted differences in pupil function and mse
+            ax: plt.Axes
+                The according plt.Ax object
+        """
         with np.errstate(invalid="ignore"):
             fig, ax = plt.subplots(1, 1, figsize=(12, 3), sharex=True, dpi=figure_dpi)
             x_values = range(2, len(self.mse_diff) + 1)
@@ -339,7 +378,7 @@ class ZernikeDecomposition(object):
         """The results of decomposing a pupil function's phase and magnitude
         into zernike modes
 
-        Paramters
+        Parameters
         ---------
         mag_coefs : ndarray (m, )
             Coefficients for the zernike decomposition of the magnitude
@@ -361,10 +400,43 @@ class ZernikeDecomposition(object):
         data = self.pcoefs[:len(ordered_names)]
         return dict(zip(ordered_names, data))
 
-    def plot_named_coefs(self, figure_dpi):
+    def plot_named_coefs(self):
         """Plot the first 15 zernike mode coefficients
 
         These coefficients correspond to the classical abberations
+        """
+        # set up the subplot
+        fig, ax = plt.subplots(1, 1, sharex=True, figsize=(6, 6))
+        # get the ordered names
+        ordered_names = [noll2name[i + 1] for i in range(len(noll2name))]
+        # make an x range for the bar plot
+        x = np.arange(len(ordered_names)) + 1
+        # pull the data
+        data = self.pcoefs[:len(ordered_names)]
+        # make the bar plot
+        ax.bar(x, data, align="center", tick_label=ordered_names)
+        # set up axes
+        ax.axis("tight")
+        ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+        ax.set_ylabel("Phase Coefficient")
+        fig.tight_layout()
+        # return figure handles
+        return fig, ax
+
+    def plot_named_coefs_gui(self, figure_dpi):
+        """Plot the first 15 zernike mode coefficients
+
+            Arguments
+            ---------
+            figure_dpi: int
+                Desired resolution, depending on the screen resolution
+
+            Returns
+            ---------
+            fig: plt.Figure
+                The figure object showing the plotted phase coefficients
+            ax: plt.Axes
+                The according plt.Ax object
         """
         # set up the subplot
         fig, ax = plt.subplots(1, 1, sharex=True, figsize=(6, 6), dpi=figure_dpi)
