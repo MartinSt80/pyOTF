@@ -15,11 +15,11 @@ The software is very much in alpha phase and installation is simply cloning the 
 The package is made up of four component modules:
 - `otf.py` which contains classes for generating different types of OTFs and PSFs
 - `phase_retrieval.py` which contains functions and classes to perform iterative [phase retrieval][3] of the rear aperature of the optical system
+- `zernike.py` which contains functions for calculating [Zernike Polynomials](https://en.wikipedia.org/wiki/Zernike_polynomials)
+- `utils.py` which contains various utility functions used throughout the package.
 
 Added by MartinSt80:
 - `phase_retrieval_gui.py`, multithreadable version of `phase_retrieval.py` to be used with this [GUI and CLI version](https://github.com/MartinSt80/PhaseRetrievalGUI)
-- `zernike.py` which contains functions for calculating [Zernike Polynomials](https://en.wikipedia.org/wiki/Zernike_polynomials)
-- `utils.py` which contains various utility functions used throughout the package.
 
 ### otf.py
 
